@@ -1,85 +1,197 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { calcularUrgencia } from "@/lib/alerts";
+import EquipamentosPorTipoChart from "../components/EquipamentosPorTipoChart";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function getStats() {
+async function getDashboardData() {
   const supabase = createClient();
-  const [clientesAtivos, equipamentosRes] = await Promise.all([
+
+  const [clientesAtivosRes, totalClientesRes, equipamentosRes, inspecoesRes] = await Promise.all([
     supabase.from("clientes").select("id", { count: "exact", head: true }).eq("status", "ativo"),
+    supabase.from("clientes").select("id", { count: "exact", head: true }),
     supabase
       .from("equipamentos")
-      .select("id, proxima_inspecao, proxima_recarga, proximo_teste_hidrostatico"),
+      .select("id, codigo_interno, tipo, proxima_inspecao, proxima_recarga, proximo_teste_hidrostatico, clientes(razao_social)"),
+    supabase
+      .from("inspecoes")
+      .select("id, created_at, necessita_manutencao, corrosao, funcionando, equipamentos(codigo_interno), clientes(razao_social)")
+      .order("created_at", { ascending: false })
+      .limit(6),
   ]);
 
-  const equipamentos = equipamentosRes.data ?? [];
-  let vencidos = 0;
-  let proximosVencer = 0;
+  const equipamentos = (equipamentosRes.data as any[]) ?? [];
+
+  // Contagem por tipo, para o gráfico
+  const porTipoMap = new Map<string, number>();
+  for (const eq of equipamentos) {
+    porTipoMap.set(eq.tipo, (porTipoMap.get(eq.tipo) ?? 0) + 1);
+  }
+  const porTipo = Array.from(porTipoMap.entries())
+    .map(([tipo, total]) => ({ tipo, total }))
+    .sort((a, b) => b.total - a.total);
+
+  // Alertas: vencidos / próximos, e lista dos 5 mais urgentes
+  type Alerta = { codigo: string; cliente: string; tipoData: string; diasRestantes: number; label: string; severity: string };
+  const alertas: Alerta[] = [];
+  let equipamentosVencidos = 0;
+  let equipamentosProximosVencer = 0;
 
   for (const eq of equipamentos) {
-    const urgencias = [
-      calcularUrgencia(eq.proxima_inspecao),
-      calcularUrgencia(eq.proxima_recarga),
-      calcularUrgencia(eq.proximo_teste_hidrostatico),
-    ].filter(Boolean) as { severity: string }[];
-
-    if (urgencias.some((u) => u.severity === "vencido" || u.severity === "hoje")) vencidos++;
-    else if (urgencias.length > 0) proximosVencer++;
+    const campos = [
+      { label: "Inspeção", data: eq.proxima_inspecao },
+      { label: "Recarga", data: eq.proxima_recarga },
+      { label: "Teste hidrostático", data: eq.proximo_teste_hidrostatico },
+    ];
+    let piorSeveridade: string | null = null;
+    for (const campo of campos) {
+      const u = calcularUrgencia(campo.data);
+      if (!u) continue;
+      alertas.push({
+        codigo: eq.codigo_interno,
+        cliente: eq.clientes?.razao_social ?? "—",
+        tipoData: campo.label,
+        diasRestantes: u.diasRestantes,
+        label: u.label,
+        severity: u.severity,
+      });
+      if (u.severity === "vencido" || u.severity === "hoje") piorSeveridade = "vencido";
+      else if (!piorSeveridade) piorSeveridade = "proximo";
+    }
+    if (piorSeveridade === "vencido") equipamentosVencidos++;
+    else if (piorSeveridade === "proximo") equipamentosProximosVencer++;
   }
 
+  alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
+
   return {
-    clientesAtivos: clientesAtivos.count ?? 0,
+    clientesAtivos: clientesAtivosRes.count ?? 0,
+    totalClientes: totalClientesRes.count ?? 0,
     totalEquipamentos: equipamentos.length,
-    vencidos,
-    proximosVencer,
+    equipamentosVencidos,
+    equipamentosProximosVencer,
+    porTipo,
+    proximosAlertas: alertas.slice(0, 5),
+    ultimasInspecoes: (inspecoesRes.data as any[]) ?? [],
   };
 }
 
 export default async function DashboardPage() {
-  const stats = await getStats();
+  const d = await getDashboardData();
 
   const cards = [
-    { label: "Clientes ativos", value: stats.clientesAtivos },
-    { label: "Equipamentos cadastrados", value: stats.totalEquipamentos },
-    { label: "Vencendo em breve", value: stats.proximosVencer, warn: true },
-    { label: "Equipamentos vencidos", value: stats.vencidos, danger: true },
+    { label: "Clientes ativos", value: d.clientesAtivos, sub: `${d.totalClientes} no total` },
+    { label: "Equipamentos", value: d.totalEquipamentos, sub: "cadastrados" },
+    { label: "Vencendo em breve", value: d.equipamentosProximosVencer, warn: true, sub: "próx. 90 dias" },
+    { label: "Vencidos", value: d.equipamentosVencidos, danger: true, sub: "ação imediata" },
   ];
 
   return (
-    <div>
-      <h1 className="font-display text-3xl mb-6">Dashboard</h1>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-3xl">Dashboard</h1>
+        <p className="text-sm text-brand-slate/70">Visão geral da operação, atualizada em tempo real.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {cards.map((c) => (
           <div
             key={c.label}
-            className={`rounded-lg border bg-white p-5 ${
+            className={`rounded-lg border bg-white p-4 md:p-5 ${
               c.danger ? "border-brand-red" : c.warn ? "border-amber-400" : "border-black/5"
             }`}
           >
-            <p className="text-sm text-brand-slate">{c.label}</p>
+            <p className="text-xs md:text-sm text-brand-slate">{c.label}</p>
             <p
-              className={`font-display text-4xl mt-1 ${
+              className={`font-display text-3xl md:text-4xl mt-1 ${
                 c.danger ? "text-brand-red" : c.warn ? "text-amber-500" : "text-brand-ink"
               }`}
             >
               {c.value}
             </p>
+            <p className="text-[11px] text-brand-slate/50 mt-0.5">{c.sub}</p>
           </div>
         ))}
       </div>
-      {(stats.vencidos > 0 || stats.proximosVencer > 0) && (
-        <Link
-          href="/alertas"
-          className="inline-block mt-6 text-sm text-brand-red underline"
-        >
-          Ver detalhes dos alertas →
-        </Link>
-      )}
-      <p className="text-sm text-brand-slate/70 mt-4">
-        Próximos passos: cadastre clientes e equipamentos para ver os dados aqui.
-      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Gráfico */}
+        <div className="lg:col-span-3 bg-white border border-black/5 rounded-lg p-4 md:p-5">
+          <p className="font-display text-lg mb-2">Equipamentos por tipo</p>
+          <EquipamentosPorTipoChart data={d.porTipo} />
+        </div>
+
+        {/* Próximos vencimentos */}
+        <div className="lg:col-span-2 bg-white border border-black/5 rounded-lg p-4 md:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-display text-lg">Próximos vencimentos</p>
+            <Link href="/alertas" className="text-xs text-brand-red underline">
+              ver todos
+            </Link>
+          </div>
+          {d.proximosAlertas.length === 0 && (
+            <p className="text-sm text-brand-slate/60">Nada vencendo nos próximos 90 dias.</p>
+          )}
+          <ul className="space-y-2.5">
+            {d.proximosAlertas.map((a, i) => (
+              <li key={i} className="flex items-center justify-between text-sm border-b border-black/5 pb-2 last:border-0">
+                <div>
+                  <p className="font-medium">{a.codigo}</p>
+                  <p className="text-xs text-brand-slate/60">
+                    {a.cliente} — {a.tipoData}
+                  </p>
+                </div>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full ${
+                    a.severity === "vencido" || a.severity === "hoje"
+                      ? "bg-red-100 text-red-700"
+                      : a.severity === "critico"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-yellow-50 text-yellow-700"
+                  }`}
+                >
+                  {a.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Atividade recente */}
+      <div className="bg-white border border-black/5 rounded-lg p-4 md:p-5">
+        <p className="font-display text-lg mb-3">Últimas inspeções</p>
+        {d.ultimasInspecoes.length === 0 && (
+          <p className="text-sm text-brand-slate/60">Nenhuma inspeção registrada ainda.</p>
+        )}
+        <ul className="space-y-2.5">
+          {d.ultimasInspecoes.map((i) => {
+            const ok = i.funcionando && !i.necessita_manutencao && !i.corrosao;
+            return (
+              <li key={i.id} className="flex items-center justify-between text-sm border-b border-black/5 pb-2 last:border-0">
+                <div>
+                  <p className="font-medium">{i.equipamentos?.codigo_interno ?? "—"}</p>
+                  <p className="text-xs text-brand-slate/60">{i.clientes?.razao_social ?? "—"}</p>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      ok ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {ok ? "OK" : "Atenção"}
+                  </span>
+                  <p className="text-[11px] text-brand-slate/50 mt-0.5">
+                    {new Date(i.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }
