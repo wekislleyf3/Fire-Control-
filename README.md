@@ -25,7 +25,11 @@ Scaffold inicial: Next.js + Supabase (Postgres/Auth/Storage), custo **R$ 0/mês*
 
 ### 3. Ativar as políticas de acesso
 1. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/policies.sql` e rode.
-   (Isso libera o acesso apenas pra quem estiver logado.)
+   (Isso reativa o RLS e libera acesso só pra quem estiver logado.)
+
+### 3.1. Configurar upload de fotos e documentos (Storage — grátis)
+1. Vá em **Storage > New bucket**, nomeie como `firecontrol-files` e marque **Public bucket**.
+2. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/storage_policies.sql` e rode.
 
 ### 4. Rodar localmente (opcional, pra testar)
 ```bash

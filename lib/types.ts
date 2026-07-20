@@ -22,6 +22,7 @@ export type Equipamento = {
   fabricante: string | null;
   numero_serie: string | null;
   localizacao: string | null;
+  foto_url: string | null;
   proxima_inspecao: string | null;
   proxima_recarga: string | null;
   proximo_teste_hidrostatico: string | null;
@@ -29,7 +30,15 @@ export type Equipamento = {
   created_at: string;
 };
 
-export type Inspecao = {
+export type Documento = {
+  id: string;
+  cliente_id: string;
+  tipo: string;
+  nome_arquivo: string;
+  arquivo_url: string;
+  validade: string | null;
+  created_at: string;
+};
   id: string;
   cliente_id: string;
   equipamento_id: string;

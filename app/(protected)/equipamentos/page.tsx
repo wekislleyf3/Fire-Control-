@@ -46,6 +46,7 @@ export default function EquipamentosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [qrFor, setQrFor] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
@@ -117,6 +118,38 @@ export default function EquipamentosPage() {
     setDeletingId(null);
     if (error) {
       setError(`Erro ao excluir equipamento: ${error.message}`);
+      return;
+    }
+    loadData();
+  }
+
+  async function handlePhotoUpload(eq: Equipamento, file: File) {
+    setUploadingId(eq.id);
+    setError(null);
+
+    const extensao = file.name.split(".").pop();
+    const caminho = `equipamentos/${eq.id}/foto-${Date.now()}.${extensao}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("firecontrol-files")
+      .upload(caminho, file, { upsert: true });
+
+    if (uploadError) {
+      setError(`Erro ao enviar foto: ${uploadError.message}`);
+      setUploadingId(null);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from("firecontrol-files").getPublicUrl(caminho);
+
+    const { error: updateError } = await supabase
+      .from("equipamentos")
+      .update({ foto_url: urlData.publicUrl })
+      .eq("id", eq.id);
+
+    setUploadingId(null);
+    if (updateError) {
+      setError(`Erro ao salvar foto: ${updateError.message}`);
       return;
     }
     loadData();
@@ -214,10 +247,11 @@ export default function EquipamentosPage() {
       )}
 
       <div className="bg-white border border-black/5 rounded-lg overflow-x-auto">
-        <table className="w-full text-sm min-w-[720px]">
+        <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-brand-fog text-left text-brand-slate">
             <tr>
               <th className="px-4 py-3">Código</th>
+              <th className="px-4 py-3">Foto</th>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Localização</th>
               <th className="px-4 py-3">Status</th>
@@ -228,14 +262,14 @@ export default function EquipamentosPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={7} className="px-4 py-6 text-center text-brand-slate/60">
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && equipamentos.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={7} className="px-4 py-6 text-center text-brand-slate/60">
                   Nenhum equipamento cadastrado ainda.
                 </td>
               </tr>
@@ -243,6 +277,30 @@ export default function EquipamentosPage() {
             {equipamentos.map((eq) => (
               <tr key={eq.id} className="border-t border-black/5">
                 <td className="px-4 py-3 font-medium">{eq.codigo_interno}</td>
+                <td className="px-4 py-3">
+                  <label className="cursor-pointer">
+                    {eq.foto_url ? (
+                      <img
+                        src={eq.foto_url}
+                        alt={eq.codigo_interno}
+                        className="w-12 h-12 object-cover rounded-md border"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-md border border-dashed flex items-center justify-center text-[10px] text-brand-slate/50 text-center">
+                        {uploadingId === eq.id ? "..." : "sem foto"}
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoUpload(eq, file);
+                      }}
+                    />
+                  </label>
+                </td>
                 <td className="px-4 py-3">{eq.tipo}</td>
                 <td className="px-4 py-3">{eq.localizacao}</td>
                 <td className="px-4 py-3">
