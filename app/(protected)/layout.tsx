@@ -6,6 +6,7 @@ const nav = [
   { href: "/clientes", label: "Clientes" },
   { href: "/equipamentos", label: "Equipamentos" },
   { href: "/inspecoes", label: "Inspeções" },
+  { href: "/alertas", label: "Alertas" },
 ];
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {

@@ -200,8 +200,8 @@ export default function InspecoesPage() {
       </form>
 
       <h2 className="font-display text-xl mb-3">Últimas inspeções</h2>
-      <div className="bg-white border border-black/5 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-black/5 rounded-lg overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead className="bg-brand-fog text-left text-brand-slate">
             <tr>
               <th className="px-4 py-3">Data</th>

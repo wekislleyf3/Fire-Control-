@@ -1,22 +1,39 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { calcularUrgencia } from "@/lib/alerts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 async function getStats() {
   const supabase = createClient();
-  const [clientesAtivos, totalEquipamentos, vencidos, proximosVencer] = await Promise.all([
+  const [clientesAtivos, equipamentosRes] = await Promise.all([
     supabase.from("clientes").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-    supabase.from("equipamentos").select("id", { count: "exact", head: true }),
-    supabase.from("equipamentos").select("id", { count: "exact", head: true }).eq("status", "vencido"),
-    supabase.from("equipamentos").select("id", { count: "exact", head: true }).eq("status", "atencao"),
+    supabase
+      .from("equipamentos")
+      .select("id, proxima_inspecao, proxima_recarga, proximo_teste_hidrostatico"),
   ]);
+
+  const equipamentos = equipamentosRes.data ?? [];
+  let vencidos = 0;
+  let proximosVencer = 0;
+
+  for (const eq of equipamentos) {
+    const urgencias = [
+      calcularUrgencia(eq.proxima_inspecao),
+      calcularUrgencia(eq.proxima_recarga),
+      calcularUrgencia(eq.proximo_teste_hidrostatico),
+    ].filter(Boolean) as { severity: string }[];
+
+    if (urgencias.some((u) => u.severity === "vencido" || u.severity === "hoje")) vencidos++;
+    else if (urgencias.length > 0) proximosVencer++;
+  }
 
   return {
     clientesAtivos: clientesAtivos.count ?? 0,
-    totalEquipamentos: totalEquipamentos.count ?? 0,
-    vencidos: vencidos.count ?? 0,
-    proximosVencer: proximosVencer.count ?? 0,
+    totalEquipamentos: equipamentos.length,
+    vencidos,
+    proximosVencer,
   };
 }
 
@@ -52,7 +69,15 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
-      <p className="text-sm text-brand-slate/70 mt-8">
+      {(stats.vencidos > 0 || stats.proximosVencer > 0) && (
+        <Link
+          href="/alertas"
+          className="inline-block mt-6 text-sm text-brand-red underline"
+        >
+          Ver detalhes dos alertas →
+        </Link>
+      )}
+      <p className="text-sm text-brand-slate/70 mt-4">
         Próximos passos: cadastre clientes e equipamentos para ver os dados aqui.
       </p>
     </div>
