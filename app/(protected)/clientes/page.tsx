@@ -2,23 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-const supabase = createClient();
 import type { Cliente } from "@/lib/types";
+
+const supabase = createClient();
+
+const emptyForm = {
+  razao_social: "",
+  nome_fantasia: "",
+  cnpj: "",
+  telefone: "",
+  cidade: "",
+  estado: "",
+  status: "ativo",
+};
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    razao_social: "",
-    nome_fantasia: "",
-    cnpj: "",
-    telefone: "",
-    cidade: "",
-    estado: "",
-  });
+  const [form, setForm] = useState({ ...emptyForm });
 
   async function loadClientes() {
     setLoading(true);
@@ -26,11 +32,8 @@ export default function ClientesPage() {
       .from("clientes")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) {
-      setError(`Erro ao carregar clientes: ${error.message}`);
-    } else {
-      setError(null);
-    }
+    if (error) setError(`Erro ao carregar clientes: ${error.message}`);
+    else setError(null);
     setClientes((data as Cliente[]) ?? []);
     setLoading(false);
   }
@@ -39,19 +42,60 @@ export default function ClientesPage() {
     loadClientes();
   }, []);
 
+  function startNew() {
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  function startEdit(c: Cliente) {
+    setForm({
+      razao_social: c.razao_social ?? "",
+      nome_fantasia: c.nome_fantasia ?? "",
+      cnpj: c.cnpj ?? "",
+      telefone: c.telefone ?? "",
+      cidade: c.cidade ?? "",
+      estado: c.estado ?? "",
+      status: c.status ?? "ativo",
+    });
+    setEditingId(c.id);
+    setShowForm(true);
+    setError(null);
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ ...emptyForm });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.razao_social) return;
     setSaving(true);
     setError(null);
-    const { error } = await supabase.from("clientes").insert([form]);
+
+    const { error } = editingId
+      ? await supabase.from("clientes").update(form).eq("id", editingId)
+      : await supabase.from("clientes").insert([form]);
+
     setSaving(false);
     if (error) {
       setError(`Erro ao salvar cliente: ${error.message}`);
-      return; // não fecha o formulário nem limpa os campos se falhou
+      return;
     }
-    setForm({ razao_social: "", nome_fantasia: "", cnpj: "", telefone: "", cidade: "", estado: "" });
-    setShowForm(false);
+    cancelForm();
+    loadClientes();
+  }
+
+  async function handleDelete(id: string) {
+    setError(null);
+    const { error } = await supabase.from("clientes").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) {
+      setError(`Erro ao excluir cliente: ${error.message}`);
+      return;
+    }
     loadClientes();
   }
 
@@ -60,7 +104,7 @@ export default function ClientesPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-3xl">Clientes</h1>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => (showForm ? cancelForm() : startNew())}
           className="bg-brand-red text-white text-sm px-4 py-2 rounded-md hover:bg-brand-redDark transition"
         >
           {showForm ? "Cancelar" : "+ Novo cliente"}
@@ -78,6 +122,9 @@ export default function ClientesPage() {
           onSubmit={handleSubmit}
           className="bg-white border border-black/5 rounded-lg p-5 mb-6 grid grid-cols-2 gap-4"
         >
+          <p className="col-span-2 text-sm font-medium text-brand-slate">
+            {editingId ? "Editando cliente" : "Novo cliente"}
+          </p>
           <input
             required
             placeholder="Razão social *"
@@ -115,11 +162,19 @@ export default function ClientesPage() {
             value={form.estado}
             onChange={(e) => setForm({ ...form, estado: e.target.value })}
           />
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </select>
           <button
             disabled={saving}
             className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md disabled:opacity-60"
           >
-            {saving ? "Salvando..." : "Salvar cliente"}
+            {saving ? "Salvando..." : editingId ? "Salvar alterações" : "Salvar cliente"}
           </button>
         </form>
       )}
@@ -132,19 +187,20 @@ export default function ClientesPage() {
               <th className="px-4 py-3">Cidade/UF</th>
               <th className="px-4 py-3">Telefone</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={5} className="px-4 py-6 text-center text-brand-slate/60">
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && clientes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={5} className="px-4 py-6 text-center text-brand-slate/60">
                   Nenhum cliente cadastrado ainda.
                 </td>
               </tr>
@@ -158,6 +214,40 @@ export default function ClientesPage() {
                 </td>
                 <td className="px-4 py-3">{c.telefone}</td>
                 <td className="px-4 py-3 capitalize">{c.status}</td>
+                <td className="px-4 py-3">
+                  {deletingId === c.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-brand-slate">Confirmar exclusão?</span>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="text-xs text-white bg-brand-red px-2 py-1 rounded"
+                      >
+                        Sim
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="text-xs px-2 py-1 rounded border"
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => startEdit(c)}
+                        className="text-xs text-brand-slate underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(c.id)}
+                        className="text-xs text-brand-red underline"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

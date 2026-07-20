@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { createClient } from "@/lib/supabase/client";
-const supabase = createClient();
 import type { Cliente, Equipamento } from "@/lib/types";
+
+const supabase = createClient();
 
 const TIPOS = [
   "Extintor",
@@ -27,20 +28,27 @@ const statusColor: Record<string, string> = {
   vencido: "bg-red-100 text-red-700",
 };
 
+const emptyForm = {
+  codigo_interno: "",
+  cliente_id: "",
+  tipo: TIPOS[0],
+  fabricante: "",
+  numero_serie: "",
+  localizacao: "",
+  status: "ok",
+};
+
 export default function EquipamentosPage() {
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [qrFor, setQrFor] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    codigo_interno: "",
-    cliente_id: "",
-    tipo: TIPOS[0],
-    fabricante: "",
-    numero_serie: "",
-    localizacao: "",
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm });
 
   async function loadData() {
     setLoading(true);
@@ -57,19 +65,60 @@ export default function EquipamentosPage() {
     loadData();
   }, []);
 
+  function startNew() {
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  function startEdit(eq: Equipamento) {
+    setForm({
+      codigo_interno: eq.codigo_interno,
+      cliente_id: eq.cliente_id,
+      tipo: eq.tipo,
+      fabricante: eq.fabricante ?? "",
+      numero_serie: eq.numero_serie ?? "",
+      localizacao: eq.localizacao ?? "",
+      status: eq.status,
+    });
+    setEditingId(eq.id);
+    setShowForm(true);
+    setError(null);
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ ...emptyForm });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.codigo_interno || !form.cliente_id) return;
-    await supabase.from("equipamentos").insert([form]);
-    setForm({
-      codigo_interno: "",
-      cliente_id: "",
-      tipo: TIPOS[0],
-      fabricante: "",
-      numero_serie: "",
-      localizacao: "",
-    });
-    setShowForm(false);
+    setSaving(true);
+    setError(null);
+
+    const { error } = editingId
+      ? await supabase.from("equipamentos").update(form).eq("id", editingId)
+      : await supabase.from("equipamentos").insert([form]);
+
+    setSaving(false);
+    if (error) {
+      setError(`Erro ao salvar equipamento: ${error.message}`);
+      return;
+    }
+    cancelForm();
+    loadData();
+  }
+
+  async function handleDelete(id: string) {
+    setError(null);
+    const { error } = await supabase.from("equipamentos").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) {
+      setError(`Erro ao excluir equipamento: ${error.message}`);
+      return;
+    }
     loadData();
   }
 
@@ -78,18 +127,27 @@ export default function EquipamentosPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-3xl">Equipamentos</h1>
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => (showForm ? cancelForm() : startNew())}
           className="bg-brand-red text-white text-sm px-4 py-2 rounded-md hover:bg-brand-redDark transition"
         >
           {showForm ? "Cancelar" : "+ Novo equipamento"}
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3 mb-4">
+          {error}
+        </div>
+      )}
+
       {showForm && (
         <form
           onSubmit={handleSubmit}
           className="bg-white border border-black/5 rounded-lg p-5 mb-6 grid grid-cols-2 gap-4"
         >
+          <p className="col-span-2 text-sm font-medium text-brand-slate">
+            {editingId ? "Editando equipamento" : "Novo equipamento"}
+          </p>
           <input
             required
             placeholder="Código interno (ex: FC-EXT-000001) *"
@@ -133,12 +191,24 @@ export default function EquipamentosPage() {
           />
           <input
             placeholder="Localização (setor/pavimento)"
-            className="border rounded-md px-3 py-2 text-sm col-span-2"
+            className="border rounded-md px-3 py-2 text-sm"
             value={form.localizacao}
             onChange={(e) => setForm({ ...form, localizacao: e.target.value })}
           />
-          <button className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md">
-            Salvar equipamento
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <option value="ok">OK</option>
+            <option value="atencao">Atenção</option>
+            <option value="vencido">Vencido</option>
+          </select>
+          <button
+            disabled={saving}
+            className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md disabled:opacity-60"
+          >
+            {saving ? "Salvando..." : editingId ? "Salvar alterações" : "Salvar equipamento"}
           </button>
         </form>
       )}
@@ -152,19 +222,20 @@ export default function EquipamentosPage() {
               <th className="px-4 py-3">Localização</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">QR</th>
+              <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={6} className="px-4 py-6 text-center text-brand-slate/60">
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && equipamentos.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={6} className="px-4 py-6 text-center text-brand-slate/60">
                   Nenhum equipamento cadastrado ainda.
                 </td>
               </tr>
@@ -189,6 +260,40 @@ export default function EquipamentosPage() {
                   {qrFor === eq.id && (
                     <div className="mt-2">
                       <QRCodeSVG value={`${eq.codigo_interno}`} size={80} />
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {deletingId === eq.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-brand-slate">Excluir + histórico?</span>
+                      <button
+                        onClick={() => handleDelete(eq.id)}
+                        className="text-xs text-white bg-brand-red px-2 py-1 rounded"
+                      >
+                        Sim
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="text-xs px-2 py-1 rounded border"
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => startEdit(eq)}
+                        className="text-xs text-brand-slate underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(eq.id)}
+                        className="text-xs text-brand-red underline"
+                      >
+                        Excluir
+                      </button>
                     </div>
                   )}
                 </td>
