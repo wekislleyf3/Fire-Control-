@@ -8,6 +8,8 @@ export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     razao_social: "",
     nome_fantasia: "",
@@ -19,10 +21,15 @@ export default function ClientesPage() {
 
   async function loadClientes() {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("clientes")
       .select("*")
       .order("created_at", { ascending: false });
+    if (error) {
+      setError(`Erro ao carregar clientes: ${error.message}`);
+    } else {
+      setError(null);
+    }
     setClientes((data as Cliente[]) ?? []);
     setLoading(false);
   }
@@ -34,7 +41,14 @@ export default function ClientesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.razao_social) return;
-    await supabase.from("clientes").insert([form]);
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase.from("clientes").insert([form]);
+    setSaving(false);
+    if (error) {
+      setError(`Erro ao salvar cliente: ${error.message}`);
+      return; // não fecha o formulário nem limpa os campos se falhou
+    }
     setForm({ razao_social: "", nome_fantasia: "", cnpj: "", telefone: "", cidade: "", estado: "" });
     setShowForm(false);
     loadClientes();
@@ -51,6 +65,12 @@ export default function ClientesPage() {
           {showForm ? "Cancelar" : "+ Novo cliente"}
         </button>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3 mb-4">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <form
@@ -94,8 +114,11 @@ export default function ClientesPage() {
             value={form.estado}
             onChange={(e) => setForm({ ...form, estado: e.target.value })}
           />
-          <button className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md">
-            Salvar cliente
+          <button
+            disabled={saving}
+            className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md disabled:opacity-60"
+          >
+            {saving ? "Salvando..." : "Salvar cliente"}
           </button>
         </form>
       )}
