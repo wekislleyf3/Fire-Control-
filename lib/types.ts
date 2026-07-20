@@ -1,0 +1,30 @@
+export type Cliente = {
+  id: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+  cnpj: string | null;
+  telefone: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  responsavel: string | null;
+  cidade: string | null;
+  estado: string | null;
+  status: "ativo" | "inativo";
+  proxima_visita: string | null;
+  created_at: string;
+};
+
+export type Equipamento = {
+  id: string;
+  codigo_interno: string;
+  cliente_id: string;
+  tipo: string;
+  fabricante: string | null;
+  numero_serie: string | null;
+  localizacao: string | null;
+  proxima_inspecao: string | null;
+  proxima_recarga: string | null;
+  proximo_teste_hidrostatico: string | null;
+  status: "ok" | "atencao" | "vencido";
+  created_at: string;
+};
