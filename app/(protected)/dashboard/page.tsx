@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { calcularUrgencia } from "@/lib/alerts";
 import EquipamentosPorTipoChart from "../components/EquipamentosPorTipoChart";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 async function getDashboardData() {
+  noStore();
   const supabase = createClient();
 
   const [clientesAtivosRes, totalClientesRes, equipamentosRes, inspecoesRes] = await Promise.all([

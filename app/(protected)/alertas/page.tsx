@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { calcularUrgencia, severityStyle } from "@/lib/alerts";
 import type { Equipamento } from "@/lib/types";
@@ -16,6 +17,7 @@ type LinhaAlerta = {
 };
 
 async function getAlertas(): Promise<LinhaAlerta[]> {
+  noStore();
   const supabase = createClient();
   const { data: equipamentos } = await supabase
     .from("equipamentos")
