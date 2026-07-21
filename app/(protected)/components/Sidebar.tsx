@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LayoutDashboard, Users, Wrench, ClipboardCheck, Bell, FolderOpen } from "lucide-react";
+import { Menu, X, LayoutDashboard, Users, Wrench, ClipboardCheck, Bell, FolderOpen, AlertTriangle } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/pendencias", label: "Pendências", icon: AlertTriangle },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/equipamentos", label: "Equipamentos", icon: Wrench },
   { href: "/inspecoes", label: "Inspeções", icon: ClipboardCheck },

@@ -92,9 +92,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Dashboard</h1>
-        <p className="text-sm text-brand-slate/70">Visão geral da operação, atualizada em tempo real.</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="font-display text-3xl">Dashboard</h1>
+          <p className="text-sm text-brand-slate/70">Visão geral da operação, atualizada em tempo real.</p>
+        </div>
+        <Link
+          href="/pendencias"
+          className="bg-brand-red text-white text-sm px-4 py-2 rounded-md hover:bg-brand-redDark transition"
+        >
+          Central de Pendências
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
