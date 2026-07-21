@@ -36,6 +36,8 @@ export default function InspecoesPage() {
   const [observacoes, setObservacoes] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadBase() {
     const [cl, eq, insp] = await Promise.all([
@@ -111,6 +113,17 @@ export default function InspecoesPage() {
     setChecklist({ ...defaultChecklist });
     setObservacoes("");
     setEquipamentoId("");
+    loadBase();
+  }
+
+  async function handleDelete(id: string) {
+    setError(null);
+    const { error } = await supabase.from("inspecoes").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) {
+      setError(`Erro ao excluir inspeção: ${error.message}`);
+      return;
+    }
     loadBase();
   }
 
@@ -200,20 +213,28 @@ export default function InspecoesPage() {
       </form>
 
       <h2 className="font-display text-xl mb-3">Últimas inspeções</h2>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3 mb-4">
+          {error}
+        </div>
+      )}
+
       <div className="bg-white border border-black/5 rounded-lg overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        <table className="w-full text-sm min-w-[700px]">
           <thead className="bg-brand-fog text-left text-brand-slate">
             <tr>
               <th className="px-4 py-3">Data</th>
               <th className="px-4 py-3">Equipamento</th>
               <th className="px-4 py-3">Resultado</th>
               <th className="px-4 py-3">Observações</th>
+              <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
             {inspecoes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-brand-slate/60">
+                <td colSpan={5} className="px-4 py-6 text-center text-brand-slate/60">
                   Nenhuma inspeção registrada ainda.
                 </td>
               </tr>
@@ -235,6 +256,31 @@ export default function InspecoesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">{i.observacoes ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {deletingId === i.id ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDelete(i.id)}
+                          className="text-xs text-white bg-brand-red px-2 py-1 rounded"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(null)}
+                          className="text-xs px-2 py-1 rounded border"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeletingId(i.id)}
+                        className="text-xs text-brand-red underline"
+                      >
+                        Excluir
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}

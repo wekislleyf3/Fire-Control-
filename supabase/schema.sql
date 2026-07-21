@@ -93,9 +93,9 @@ create table documentos (
 
 create table inspecoes (
   id uuid primary key default uuid_generate_v4(),
-  cliente_id uuid references clientes(id),
-  unidade_id uuid references unidades(id),
-  equipamento_id uuid references equipamentos(id),
+  cliente_id uuid references clientes(id) on delete cascade,
+  unidade_id uuid references unidades(id) on delete cascade,
+  equipamento_id uuid references equipamentos(id) on delete cascade,
   funcionando boolean,
   lacre_integro boolean,
   manometro_correto boolean,

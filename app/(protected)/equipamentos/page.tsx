@@ -36,6 +36,9 @@ const emptyForm = {
   numero_serie: "",
   localizacao: "",
   status: "ok",
+  proxima_inspecao: "",
+  proxima_recarga: "",
+  proximo_teste_hidrostatico: "",
 };
 
 export default function EquipamentosPage() {
@@ -81,6 +84,9 @@ export default function EquipamentosPage() {
       numero_serie: eq.numero_serie ?? "",
       localizacao: eq.localizacao ?? "",
       status: eq.status,
+      proxima_inspecao: eq.proxima_inspecao ?? "",
+      proxima_recarga: eq.proxima_recarga ?? "",
+      proximo_teste_hidrostatico: eq.proximo_teste_hidrostatico ?? "",
     });
     setEditingId(eq.id);
     setShowForm(true);
@@ -99,9 +105,17 @@ export default function EquipamentosPage() {
     setSaving(true);
     setError(null);
 
+    // datas vazias precisam virar null (coluna "date" no Postgres não aceita "")
+    const payload = {
+      ...form,
+      proxima_inspecao: form.proxima_inspecao || null,
+      proxima_recarga: form.proxima_recarga || null,
+      proximo_teste_hidrostatico: form.proximo_teste_hidrostatico || null,
+    };
+
     const { error } = editingId
-      ? await supabase.from("equipamentos").update(form).eq("id", editingId)
-      : await supabase.from("equipamentos").insert([form]);
+      ? await supabase.from("equipamentos").update(payload).eq("id", editingId)
+      : await supabase.from("equipamentos").insert([payload]);
 
     setSaving(false);
     if (error) {
@@ -237,6 +251,37 @@ export default function EquipamentosPage() {
             <option value="atencao">Atenção</option>
             <option value="vencido">Vencido</option>
           </select>
+
+          <div className="col-span-2 grid grid-cols-3 gap-4 border-t border-black/5 pt-4">
+            <div>
+              <label className="text-xs text-brand-slate">Próxima inspeção</label>
+              <input
+                type="date"
+                className="border rounded-md px-3 py-2 text-sm w-full mt-1"
+                value={form.proxima_inspecao}
+                onChange={(e) => setForm({ ...form, proxima_inspecao: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-brand-slate">Próxima recarga</label>
+              <input
+                type="date"
+                className="border rounded-md px-3 py-2 text-sm w-full mt-1"
+                value={form.proxima_recarga}
+                onChange={(e) => setForm({ ...form, proxima_recarga: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-brand-slate">Próximo teste hidrostático</label>
+              <input
+                type="date"
+                className="border rounded-md px-3 py-2 text-sm w-full mt-1"
+                value={form.proximo_teste_hidrostatico}
+                onChange={(e) => setForm({ ...form, proximo_teste_hidrostatico: e.target.value })}
+              />
+            </div>
+          </div>
+
           <button
             disabled={saving}
             className="col-span-2 bg-brand-ink text-white text-sm py-2 rounded-md disabled:opacity-60"
