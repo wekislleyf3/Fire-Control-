@@ -97,12 +97,20 @@ export default async function DashboardPage() {
           <h1 className="font-display text-3xl">Dashboard</h1>
           <p className="text-sm text-brand-slate/70">Visão geral da operação, atualizada em tempo real.</p>
         </div>
-        <Link
-          href="/pendencias"
-          className="bg-brand-red text-white text-sm px-4 py-2 rounded-md hover:bg-brand-redDark transition"
-        >
-          Central de Pendências
-        </Link>
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/ifc"
+            className="bg-white border border-brand-red text-brand-red text-sm px-4 py-2 rounded-md hover:bg-red-50 transition"
+          >
+            Índice FireControl
+          </Link>
+          <Link
+            href="/pendencias"
+            className="bg-brand-red text-white text-sm px-4 py-2 rounded-md hover:bg-brand-redDark transition"
+          >
+            Central de Pendências
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">

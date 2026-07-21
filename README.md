@@ -31,6 +31,10 @@ Scaffold inicial: Next.js + Supabase (Postgres/Auth/Storage), custo **R$ 0/mês*
 1. Vá em **Storage > New bucket**, nomeie como `firecontrol-files` e marque **Public bucket**.
 2. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/storage_policies.sql` e rode.
 
+### 3.2. Ativar o Índice FireControl (IFC)
+1. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/migration_ifc.sql` e rode.
+   (Cria a tabela de histórico mensal do índice.)
+
 ### 4. Rodar localmente (opcional, pra testar)
 ```bash
 npm install
