@@ -1,4 +1,4 @@
-﻿export type Cliente = {
+export type Cliente = {
   id: string;
   razao_social: string;
   nome_fantasia: string | null;
@@ -13,7 +13,6 @@
   proxima_visita: string | null;
   created_at: string;
 };
-
 
 export type Equipamento = {
   id: string;
@@ -31,7 +30,6 @@ export type Equipamento = {
   created_at: string;
 };
 
-
 export type Documento = {
   id: string;
   cliente_id: string;
@@ -41,7 +39,6 @@ export type Documento = {
   validade: string | null;
   created_at: string;
 };
-
 
 export type Inspecao = {
   id: string;
