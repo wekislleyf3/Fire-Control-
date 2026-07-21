@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { Cliente } from "@/lib/types";
-
-const supabase = createClient();
+import { useSupabase } from "@/hooks/useSupabase";
+import { clientesService, ValidationError } from "@/lib/services/clientesService";
+import type { Cliente, ClienteInput } from "@/types/cliente";
 
 const emptyForm = {
   razao_social: "",
@@ -17,6 +16,7 @@ const emptyForm = {
 };
 
 export default function ClientesPage() {
+  const supabase = useSupabase();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -28,14 +28,15 @@ export default function ClientesPage() {
 
   async function loadClientes() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("clientes")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) setError(`Erro ao carregar clientes: ${error.message}`);
-    else setError(null);
-    setClientes((data as Cliente[]) ?? []);
-    setLoading(false);
+    try {
+      const data = await clientesService.list(supabase);
+      setClientes(data);
+      setError(null);
+    } catch (err) {
+      setError(`Erro ao carregar clientes: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -75,28 +76,30 @@ export default function ClientesPage() {
     setSaving(true);
     setError(null);
 
-    const { error } = editingId
-      ? await supabase.from("clientes").update(form).eq("id", editingId)
-      : await supabase.from("clientes").insert([form]);
-
-    setSaving(false);
-    if (error) {
-      setError(`Erro ao salvar cliente: ${error.message}`);
-      return;
+    try {
+      const input = form as unknown as ClienteInput;
+      if (editingId) await clientesService.update(supabase, editingId, input);
+      else await clientesService.create(supabase, input);
+      cancelForm();
+      await loadClientes();
+    } catch (err) {
+      const message =
+        err instanceof ValidationError ? err.message : `Erro ao salvar cliente: ${(err as Error).message}`;
+      setError(message);
+    } finally {
+      setSaving(false);
     }
-    cancelForm();
-    loadClientes();
   }
 
   async function handleDelete(id: string) {
     setError(null);
-    const { error } = await supabase.from("clientes").delete().eq("id", id);
-    setDeletingId(null);
-    if (error) {
-      setError(`Erro ao excluir cliente: ${error.message}`);
-      return;
+    try {
+      await clientesService.remove(supabase, id);
+      setDeletingId(null);
+      await loadClientes();
+    } catch (err) {
+      setError(`Erro ao excluir cliente: ${(err as Error).message}`);
     }
-    loadClientes();
   }
 
   return (
