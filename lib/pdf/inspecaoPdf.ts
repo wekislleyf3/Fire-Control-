@@ -16,21 +16,17 @@ export function gerarInspecaoPdf(
   const vermelho: [number, number, number] = [196, 30, 30];
   const cinza: [number, number, number] = [90, 90, 90];
 
-  // Cabeçalho corporativo (faixa vermelha no topo)
-  doc.setFillColor(...vermelho);
-  doc.rect(0, 0, 210, 26, "F");
+  // Cabeçalho
+  doc.setFontSize(18);
+  doc.setTextColor(...vermelho);
+  doc.text("FireControl OS", 14, 18);
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("FireControl OS", 14, 13);
+  doc.setFontSize(11);
+  doc.setTextColor(...cinza);
+  doc.text("Relatório de Inspeção Técnica", 14, 25);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("RELATÓRIO TÉCNICO DE INSPEÇÃO", 14, 20);
-
-  doc.text(`LAUDO Nº: ${inspecao.id.slice(0, 8).toUpperCase()}`, 196, 13, { align: "right" });
-  doc.text(new Date(inspecao.created_at).toLocaleDateString("pt-BR"), 196, 20, { align: "right" });
+  doc.setDrawColor(225, 225, 225);
+  doc.line(14, 29, 196, 29);
 
   let y = 38;
   doc.setFontSize(10);
@@ -120,57 +116,19 @@ export function gerarInspecaoPdf(
   });
 
   // @ts-expect-error — lastAutoTable é injetado pelo plugin jspdf-autotable
-  const finalY = (doc.lastAutoTable?.finalY ?? y + 20) + 8;
+  const finalY = (doc.lastAutoTable?.finalY ?? y + 20) + 10;
 
-  const aprovado = inspecao.resultado === "conforme";
-  const verde: [number, number, number] = [22, 101, 52];
-  const verdeClaro: [number, number, number] = [240, 253, 244];
-  const vermelhoClaro: [number, number, number] = [254, 242, 242];
-
-  // Parecer técnico
-  doc.setDrawColor(...(aprovado ? verde : vermelho));
-  doc.setFillColor(...(aprovado ? verdeClaro : vermelhoClaro));
-  doc.roundedRect(14, finalY, 118, 26, 2, 2, "FD");
-
+  doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...(aprovado ? verde : vermelho));
-  doc.text(`PARECER: ${aprovado ? "EQUIPAMENTO CONFORME" : "NÃO CONFORMIDADE DETECTADA"}`, 18, finalY + 8, {
-    maxWidth: 110,
-  });
+  if (inspecao.resultado === "conforme") {
+    doc.setTextColor(30, 130, 76);
+    doc.text("RESULTADO GERAL: CONFORME", 14, finalY);
+  } else {
+    doc.setTextColor(...vermelho);
+    doc.text("RESULTADO GERAL: NÃO CONFORME", 14, finalY);
+  }
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(60, 60, 60);
-  doc.text(
-    aprovado
-      ? "Equipamento atende aos requisitos técnicos verificados nesta inspeção."
-      : "Recomenda-se adequação/manutenção imediata conforme apontamentos acima.",
-    18,
-    finalY + 16,
-    { maxWidth: 108 }
-  );
-
-  // Selo de vistoria virtual
-  doc.setDrawColor(...vermelho);
-  doc.setFillColor(255, 255, 255);
-  doc.roundedRect(136, finalY, 60, 26, 2, 2, "FD");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...vermelho);
-  doc.text("SELO DE VISTORIA VIRTUAL", 166, finalY + 7, { align: "center" });
-
-  doc.setFont("courier", "bold");
-  doc.setFontSize(7);
-  doc.setTextColor(60, 60, 60);
-  doc.text(inspecao.id.toUpperCase().slice(0, 16), 166, finalY + 14, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.text("FIRECONTROL OS VERIFIED", 166, finalY + 20, { align: "center" });
-
-  let y2 = finalY + 34;
+  let y2 = finalY + 10;
   if (inspecao.observacoes) {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");

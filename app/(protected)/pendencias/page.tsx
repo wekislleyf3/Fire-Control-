@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PendenciaEquipamento = {
+  id: string;
   codigo: string;
   cliente: string;
   tipo: string;
@@ -49,6 +50,7 @@ async function getPendencias() {
       const u = calcularUrgencia(campo.data);
       if (u && (u.severity === "vencido" || u.severity === "hoje")) {
         equipVencidos.push({
+          id: eq.id,
           codigo: eq.codigo_interno,
           cliente: eq.clientes?.razao_social ?? "—",
           tipo: eq.tipo,
@@ -91,12 +93,19 @@ async function getPendencias() {
     .map(([chave, total]) => ({ chave, total }))
     .sort((a, b) => b.total - a.total);
 
+  // Os cards de resumo contam EQUIPAMENTOS únicos, não linhas — um mesmo
+  // equipamento pode ter mais de uma data vencida ao mesmo tempo (ex:
+  // inspeção E recarga), e contar linhas ali infla o número em relação ao
+  // Dashboard/Alertas/IFC, que sempre contam por equipamento.
+  const equipVencidosUnicos = new Set(equipVencidos.map((e) => e.id)).size;
+
   return {
     equipVencidos,
+    equipVencidosUnicos,
     equipEmAtencao,
     docVencidos,
     grupos,
-    total: equipVencidos.length + docVencidos.length + equipEmAtencao.length,
+    total: equipVencidosUnicos + docVencidos.length + equipEmAtencao.length,
   };
 }
 
@@ -119,7 +128,7 @@ export default async function PendenciasPage() {
         </div>
         <div className="rounded-lg border border-black/5 bg-white p-4 md:p-5">
           <p className="text-xs md:text-sm text-brand-slate">Equipamentos vencidos</p>
-          <p className="font-display text-3xl md:text-4xl mt-1">{p.equipVencidos.length}</p>
+          <p className="font-display text-3xl md:text-4xl mt-1">{p.equipVencidosUnicos}</p>
         </div>
         <div className="rounded-lg border border-black/5 bg-white p-4 md:p-5">
           <p className="text-xs md:text-sm text-brand-slate">Documentos vencidos</p>

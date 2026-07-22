@@ -30,13 +30,6 @@ export type Equipamento = {
   ultimo_teste_hidrostatico: string | null;
   proximo_teste_hidrostatico: string | null;
   garantia_ate: string | null;
-  /**
-   * Campos técnicos específicos do tipo de equipamento (ex: pressão do
-   * extintor, diâmetro da mangueira, vazão do hidrante...). Opcional e
-   * livre (JSONB) — não substitui nenhuma coluna existente, apenas
-   * complementa com detalhes técnicos por tipo. Ver lib/equipamentos/especificacoesSchemas.ts.
-   */
-  especificacoes?: Record<string, any> | null;
   created_at: string;
 };
 
