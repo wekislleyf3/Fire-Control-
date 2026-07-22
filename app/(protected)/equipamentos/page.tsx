@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { createClient } from "@/lib/supabase/client";
-import { calcularUrgencia } from "@/lib/alerts";
 import type { Cliente, Equipamento } from "@/lib/types";
+import { getEspecificacoesSchema } from "@/lib/equipamentos/especificacoesSchemas";
 
 const supabase = createClient();
 
@@ -29,25 +30,6 @@ const statusColor: Record<string, string> = {
   vencido: "bg-red-100 text-red-700",
 };
 
-/**
- * A situação exibida precisa ser calculada a partir das datas (inspeção,
- * recarga, teste hidrostático) — igual ao Dashboard, Alertas, Pendências
- * e IFC — em vez de usar direto a coluna "status" do banco. A coluna
- * "status" só reflete o que foi definido manualmente ou pela última
- * inspeção (ok/atenção); ela nunca vira "vencido" sozinha, então mostrar
- * ela crua aqui fazia esta tela dizer "OK" para um equipamento que as
- * outras telas já mostravam como vencido.
- */
-function situacaoAtual(eq: Equipamento): "ok" | "atencao" | "vencido" {
-  const vencido = [eq.proxima_inspecao, eq.proxima_recarga, eq.proximo_teste_hidrostatico].some((data) => {
-    const u = calcularUrgencia(data);
-    return u && (u.severity === "vencido" || u.severity === "hoje");
-  });
-  if (vencido) return "vencido";
-  if (eq.status === "atencao") return "atencao";
-  return "ok";
-}
-
 const emptyForm = {
   codigo_interno: "",
   cliente_id: "",
@@ -59,9 +41,11 @@ const emptyForm = {
   proxima_inspecao: "",
   proxima_recarga: "",
   proximo_teste_hidrostatico: "",
+  especificacoes: {} as Record<string, any>,
 };
 
 export default function EquipamentosPage() {
+  const router = useRouter();
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +91,7 @@ export default function EquipamentosPage() {
       proxima_inspecao: eq.proxima_inspecao ?? "",
       proxima_recarga: eq.proxima_recarga ?? "",
       proximo_teste_hidrostatico: eq.proximo_teste_hidrostatico ?? "",
+      especificacoes: eq.especificacoes ?? {},
     });
     setEditingId(eq.id);
     setShowForm(true);
@@ -144,6 +129,7 @@ export default function EquipamentosPage() {
     }
     cancelForm();
     loadData();
+    router.refresh();
   }
 
   async function handleDelete(id: string) {
@@ -155,6 +141,7 @@ export default function EquipamentosPage() {
       return;
     }
     loadData();
+    router.refresh();
   }
 
   async function handlePhotoUpload(eq: Equipamento, file: File) {
@@ -239,7 +226,7 @@ export default function EquipamentosPage() {
           <select
             className="border rounded-md px-3 py-2 text-sm"
             value={form.tipo}
-            onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+            onChange={(e) => setForm({ ...form, tipo: e.target.value, especificacoes: {} })}
           >
             {TIPOS.map((t) => (
               <option key={t}>{t}</option>
@@ -263,19 +250,85 @@ export default function EquipamentosPage() {
             value={form.localizacao}
             onChange={(e) => setForm({ ...form, localizacao: e.target.value })}
           />
-          <div>
-            <select
-              className="border rounded-md px-3 py-2 text-sm w-full"
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-            >
-              <option value="ok">OK</option>
-              <option value="atencao">Atenção</option>
-            </select>
-            <p className="text-[11px] text-brand-slate/50 mt-1">
-              "Vencido" é calculado sozinho pelas datas abaixo — não precisa marcar aqui.
-            </p>
-          </div>
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <option value="ok">OK</option>
+            <option value="atencao">Atenção</option>
+            <option value="vencido">Vencido</option>
+          </select>
+
+          {getEspecificacoesSchema(form.tipo).length > 0 && (
+            <div className="col-span-2 border-t border-black/5 pt-4">
+              <p className="text-xs font-medium text-brand-slate mb-3">
+                Especificações técnicas — {form.tipo} (opcional)
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {getEspecificacoesSchema(form.tipo).map((field) => {
+                  const valor = form.especificacoes[field.name] ?? "";
+
+                  if (field.type === "boolean") {
+                    return (
+                      <label key={field.name} className="flex items-center gap-2 text-sm mt-2">
+                        <input
+                          type="checkbox"
+                          checked={!!valor}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              especificacoes: { ...form.especificacoes, [field.name]: e.target.checked },
+                            })
+                          }
+                        />
+                        {field.label}
+                      </label>
+                    );
+                  }
+
+                  if (field.type === "select") {
+                    return (
+                      <select
+                        key={field.name}
+                        className="border rounded-md px-3 py-2 text-sm"
+                        value={valor}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            especificacoes: { ...form.especificacoes, [field.name]: e.target.value },
+                          })
+                        }
+                      >
+                        <option value="">{field.label}</option>
+                        {field.options?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  }
+
+                  return (
+                    <input
+                      key={field.name}
+                      type={field.type}
+                      placeholder={field.label}
+                      className="border rounded-md px-3 py-2 text-sm"
+                      value={valor}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          especificacoes: { ...form.especificacoes, [field.name]: e.target.value },
+                        })
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="col-span-2 grid grid-cols-3 gap-4 border-t border-black/5 pt-4">
             <div>
@@ -374,8 +427,8 @@ export default function EquipamentosPage() {
                 <td className="px-4 py-3">{eq.tipo}</td>
                 <td className="px-4 py-3">{eq.localizacao}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${statusColor[situacaoAtual(eq)]}`}>
-                    {situacaoAtual(eq)}
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${statusColor[eq.status]}`}>
+                    {eq.status}
                   </span>
                 </td>
                 <td className="px-4 py-3">

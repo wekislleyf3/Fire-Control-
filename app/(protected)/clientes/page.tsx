@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSupabase } from "@/hooks/useSupabase";
 import { clientesService, ValidationError } from "@/lib/services/clientesService";
 import type { Cliente, ClienteInput, TipoPessoa } from "@/types/cliente";
@@ -57,6 +58,7 @@ function maskCep(v: string) {
 }
 
 export default function ClientesPage() {
+  const router = useRouter();
   const supabase = useSupabase();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,6 +173,7 @@ export default function ClientesPage() {
       else await clientesService.create(supabase, input);
       cancelForm();
       await loadClientes();
+      router.refresh();
     } catch (err) {
       const message =
         err instanceof ValidationError ? err.message : `Erro ao salvar cliente: ${(err as Error).message}`;
@@ -186,6 +189,7 @@ export default function ClientesPage() {
       await clientesService.remove(supabase, id);
       setDeletingId(null);
       await loadClientes();
+      router.refresh();
     } catch (err) {
       setError(`Erro ao excluir cliente: ${(err as Error).message}`);
     }

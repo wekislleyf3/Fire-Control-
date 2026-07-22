@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Cliente, Equipamento, Inspecao } from "@/lib/types";
 import {
@@ -17,6 +18,7 @@ const supabase = createClient();
 const DIAS_PROXIMA_INSPECAO = 90;
 
 export default function InspecoesPage() {
+  const router = useRouter();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([]);
@@ -117,6 +119,7 @@ export default function InspecoesPage() {
     setEquipamentoId("");
     setRespostas(respostasPadrao(CHECKLIST_PADRAO));
     loadBase();
+    router.refresh();
   }
 
   async function handleDelete(id: string) {
@@ -128,6 +131,7 @@ export default function InspecoesPage() {
       return;
     }
     loadBase();
+    router.refresh();
   }
 
   function handleGerarPdf(inspecao: Inspecao) {

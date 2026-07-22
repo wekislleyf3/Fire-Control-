@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Cliente, Documento } from "@/lib/types";
 
@@ -19,6 +20,7 @@ const TIPOS_DOCUMENTO = [
 ];
 
 export default function DocumentosPage() {
+  const router = useRouter();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -94,6 +96,7 @@ export default function DocumentosPage() {
     setFile(null);
     setValidade("");
     loadDocumentos(clienteId);
+    router.refresh();
   }
 
   async function handleDelete(doc: Documento) {
@@ -113,6 +116,7 @@ export default function DocumentosPage() {
       return;
     }
     loadDocumentos(clienteId);
+    router.refresh();
   }
 
   return (

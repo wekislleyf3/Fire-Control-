@@ -57,13 +57,6 @@ export default async function AlertasPage() {
   const vencidos = alertas.filter((a) => a.severity === "vencido" || a.severity === "hoje");
   const proximos = alertas.filter((a) => a.severity !== "vencido" && a.severity !== "hoje");
 
-  // Os cards de resumo contam EQUIPAMENTOS únicos, não linhas — um mesmo
-  // equipamento pode gerar várias linhas (ex: inspeção E recarga vencidas
-  // ao mesmo tempo), e contar linhas ali infla o número em relação ao
-  // Dashboard/Pendências/IFC, que sempre contam por equipamento.
-  const equipamentosVencidosUnicos = new Set(vencidos.map((a) => a.equipamento.id)).size;
-  const equipamentosProximosUnicos = new Set(proximos.map((a) => a.equipamento.id)).size;
-
   return (
     <div>
       <h1 className="font-display text-3xl mb-2">Alertas</h1>
@@ -74,12 +67,12 @@ export default async function AlertasPage() {
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="rounded-lg border border-red-200 bg-white p-5">
-          <p className="text-sm text-brand-slate">Equipamentos vencidos ou vencendo hoje</p>
-          <p className="font-display text-4xl mt-1 text-brand-red">{equipamentosVencidosUnicos}</p>
+          <p className="text-sm text-brand-slate">Vencidos ou vencendo hoje</p>
+          <p className="font-display text-4xl mt-1 text-brand-red">{vencidos.length}</p>
         </div>
         <div className="rounded-lg border border-amber-200 bg-white p-5">
-          <p className="text-sm text-brand-slate">Equipamentos vencendo nos próximos 90 dias</p>
-          <p className="font-display text-4xl mt-1 text-amber-500">{equipamentosProximosUnicos}</p>
+          <p className="text-sm text-brand-slate">Vencendo nos próximos 90 dias</p>
+          <p className="font-display text-4xl mt-1 text-amber-500">{proximos.length}</p>
         </div>
       </div>
 

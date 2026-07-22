@@ -7,14 +7,14 @@ import { Menu, X, LayoutDashboard, Users, Wrench, ClipboardCheck, Bell, FolderOp
 import LogoutButton from "./LogoutButton";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/pendencias", label: "Pendências", icon: AlertTriangle },
-  { href: "/ifc", label: "Índice FireControl", icon: Gauge },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, prefetch: false },
+  { href: "/pendencias", label: "Pendências", icon: AlertTriangle, prefetch: false },
+  { href: "/ifc", label: "Índice FireControl", icon: Gauge, prefetch: false },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/equipamentos", label: "Equipamentos", icon: Wrench },
   { href: "/inspecoes", label: "Inspeções", icon: ClipboardCheck },
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
-  { href: "/alertas", label: "Alertas", icon: Bell },
+  { href: "/alertas", label: "Alertas", icon: Bell, prefetch: false },
 ];
 
 function Brand() {
@@ -40,6 +40,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             key={item.href}
             href={item.href}
             onClick={onNavigate}
+            prefetch={item.prefetch ?? true}
             className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition ${
               active ? "bg-brand-red text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
             }`}
