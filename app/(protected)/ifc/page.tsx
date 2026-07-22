@@ -1,6 +1,6 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcularIFC, corDoIfc } from "@/lib/ifc";
+import { calcularIFC, faixaDoIfc } from "@/lib/ifc";
 import { calcularUrgencia } from "@/lib/alerts";
 import IfcHistoricoChart from "../components/IfcHistoricoChart";
 import RegistrarIfcButton from "../components/RegistrarIfcButton";
@@ -60,7 +60,7 @@ async function getIfcData() {
 
 export default async function IfcPage() {
   const { resultado, historico } = await getIfcData();
-  const cor = corDoIfc(resultado.score);
+  const cor = faixaDoIfc(resultado.score);
 
   const componentes = [
     { label: "Equipamentos em dia", valor: resultado.pctEquipamentosOk, peso: "50%" },
@@ -81,7 +81,8 @@ export default async function IfcPage() {
         <div className={`rounded-lg border-2 ${cor.border} ${cor.bg} p-6 flex flex-col items-center justify-center md:col-span-1`}>
           <p className="text-sm text-brand-slate">IFC atual</p>
           <p className={`font-display text-6xl ${cor.text}`}>{resultado.score}</p>
-          <p className="text-xs text-brand-slate/60 mt-1">de 100</p>
+          <p className={`text-sm font-medium mt-1 ${cor.text}`}>{cor.label}</p>
+          <p className="text-xs text-brand-slate/60">de 100</p>
         </div>
 
         <div className="md:col-span-2 bg-white border border-black/5 rounded-lg p-5">
@@ -103,6 +104,28 @@ export default async function IfcPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-black/5 rounded-lg p-4 md:p-5">
+        <p className="font-display text-lg mb-3">Faixas de classificação</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2">
+            <p className="font-medium text-green-700">Excelente</p>
+            <p className="text-xs text-brand-slate/60">95 a 100</p>
+          </div>
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="font-medium text-emerald-700">Bom</p>
+            <p className="text-xs text-brand-slate/60">85 a 94</p>
+          </div>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="font-medium text-amber-600">Atenção</p>
+            <p className="text-xs text-brand-slate/60">70 a 84</p>
+          </div>
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
+            <p className="font-medium text-brand-red">Crítico</p>
+            <p className="text-xs text-brand-slate/60">abaixo de 70</p>
           </div>
         </div>
       </div>

@@ -7,10 +7,27 @@ export class ValidationError extends Error {}
 
 function validate(input: ClienteInput) {
   if (!input.razao_social || !input.razao_social.trim()) {
-    throw new ValidationError("Razão social é obrigatória.");
+    throw new ValidationError(
+      input.tipo_pessoa === "fisica" ? "Nome completo é obrigatório." : "Razão social é obrigatória."
+    );
   }
-  if (input.cnpj && input.cnpj.replace(/\D/g, "").length !== 14) {
-    throw new ValidationError("CNPJ inválido — deve ter 14 dígitos.");
+
+  if (input.tipo_pessoa === "juridica") {
+    if (input.cnpj && input.cnpj.replace(/\D/g, "").length !== 14) {
+      throw new ValidationError("CNPJ inválido — deve ter 14 dígitos.");
+    }
+  } else if (input.tipo_pessoa === "fisica") {
+    if (input.cpf && input.cpf.replace(/\D/g, "").length !== 11) {
+      throw new ValidationError("CPF inválido — deve ter 11 dígitos.");
+    }
+  }
+
+  if (input.cep && input.cep.replace(/\D/g, "").length !== 8) {
+    throw new ValidationError("CEP inválido — deve ter 8 dígitos.");
+  }
+
+  if (input.email && !/^\S+@\S+\.\S+$/.test(input.email)) {
+    throw new ValidationError("E-mail inválido.");
   }
 }
 

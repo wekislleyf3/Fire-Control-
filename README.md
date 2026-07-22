@@ -5,9 +5,11 @@ Scaffold inicial: Next.js + Supabase (Postgres/Auth/Storage), custo **R$ 0/mês*
 ## O que já vem pronto
 - **Login obrigatório** (Supabase Auth) — todas as rotas são protegidas, exceto `/login`
 - Dashboard com indicadores (clientes ativos, equipamentos, vencidos, vencendo em breve)
-- Módulo Clientes (listar + cadastrar)
+- Módulo Clientes (Pessoa Física ou Jurídica, endereço completo com busca por CEP,
+  matrícula gerada automaticamente para cada cliente)
 - Módulo Equipamentos (listar + cadastrar + gerar QR Code)
-- Módulo Inspeções (checklist, histórico automático, atualização de status)
+- Módulo Inspeções (checklist que se adapta ao tipo de equipamento selecionado,
+  histórico automático, atualização de status, emissão de relatório em PDF)
 - Schema completo do banco (`supabase/schema.sql`) cobrindo clientes, unidades, equipamentos,
   histórico, documentos, inspeções, contratos e alertas — pronto pros próximos módulos
 
@@ -34,6 +36,11 @@ Scaffold inicial: Next.js + Supabase (Postgres/Auth/Storage), custo **R$ 0/mês*
 ### 3.2. Ativar o Índice FireControl (IFC)
 1. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/migration_ifc.sql` e rode.
    (Cria a tabela de histórico mensal do índice.)
+
+### 3.3. Ativar cadastro avançado (PF/PJ, matrícula, checklist dinâmico)
+1. Vá em **SQL Editor > New query**, cole o conteúdo de `supabase/migration_cadastro_avancado.sql` e rode.
+   (Adiciona tipo de pessoa, CPF, endereço completo e matrícula automática aos clientes;
+   adiciona o checklist dinâmico de inspeções.)
 
 ### 4. Rodar localmente (opcional, pra testar)
 ```bash

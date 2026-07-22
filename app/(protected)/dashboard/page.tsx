@@ -19,7 +19,7 @@ async function getDashboardData() {
       .select("id, codigo_interno, tipo, proxima_inspecao, proxima_recarga, proximo_teste_hidrostatico, clientes(razao_social)"),
     supabase
       .from("inspecoes")
-      .select("id, created_at, necessita_manutencao, corrosao, funcionando, equipamentos(codigo_interno), clientes(razao_social)")
+      .select("id, created_at, resultado, equipamentos(codigo_interno), clientes(razao_social)")
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
@@ -186,7 +186,7 @@ export default async function DashboardPage() {
         )}
         <ul className="space-y-2.5">
           {d.ultimasInspecoes.map((i) => {
-            const ok = i.funcionando && !i.necessita_manutencao && !i.corrosao;
+            const ok = i.resultado ? i.resultado === "conforme" : true;
             return (
               <li key={i.id} className="flex items-center justify-between text-sm border-b border-black/5 pb-2 last:border-0">
                 <div>

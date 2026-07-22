@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { createClient } from "@/lib/supabase/client";
 import type { Cliente, Equipamento } from "@/lib/types";
+import { getEspecificacoesSchema } from "@/lib/equipamentos/especificacoesSchemas";
 
 const supabase = createClient();
 
@@ -39,6 +40,7 @@ const emptyForm = {
   proxima_inspecao: "",
   proxima_recarga: "",
   proximo_teste_hidrostatico: "",
+  especificacoes: {} as Record<string, any>,
 };
 
 export default function EquipamentosPage() {
@@ -87,6 +89,7 @@ export default function EquipamentosPage() {
       proxima_inspecao: eq.proxima_inspecao ?? "",
       proxima_recarga: eq.proxima_recarga ?? "",
       proximo_teste_hidrostatico: eq.proximo_teste_hidrostatico ?? "",
+      especificacoes: eq.especificacoes ?? {},
     });
     setEditingId(eq.id);
     setShowForm(true);
@@ -211,6 +214,7 @@ export default function EquipamentosPage() {
             <option value="">Cliente *</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
+                {c.matricula ? `${c.matricula} — ` : ""}
                 {c.razao_social}
               </option>
             ))}
@@ -218,7 +222,7 @@ export default function EquipamentosPage() {
           <select
             className="border rounded-md px-3 py-2 text-sm"
             value={form.tipo}
-            onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+            onChange={(e) => setForm({ ...form, tipo: e.target.value, especificacoes: {} })}
           >
             {TIPOS.map((t) => (
               <option key={t}>{t}</option>
@@ -251,6 +255,76 @@ export default function EquipamentosPage() {
             <option value="atencao">Atenção</option>
             <option value="vencido">Vencido</option>
           </select>
+
+          {getEspecificacoesSchema(form.tipo).length > 0 && (
+            <div className="col-span-2 border-t border-black/5 pt-4">
+              <p className="text-xs font-medium text-brand-slate mb-3">
+                Especificações técnicas — {form.tipo} (opcional)
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {getEspecificacoesSchema(form.tipo).map((field) => {
+                  const valor = form.especificacoes[field.name] ?? "";
+
+                  if (field.type === "boolean") {
+                    return (
+                      <label key={field.name} className="flex items-center gap-2 text-sm mt-2">
+                        <input
+                          type="checkbox"
+                          checked={!!valor}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              especificacoes: { ...form.especificacoes, [field.name]: e.target.checked },
+                            })
+                          }
+                        />
+                        {field.label}
+                      </label>
+                    );
+                  }
+
+                  if (field.type === "select") {
+                    return (
+                      <select
+                        key={field.name}
+                        className="border rounded-md px-3 py-2 text-sm"
+                        value={valor}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            especificacoes: { ...form.especificacoes, [field.name]: e.target.value },
+                          })
+                        }
+                      >
+                        <option value="">{field.label}</option>
+                        {field.options?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  }
+
+                  return (
+                    <input
+                      key={field.name}
+                      type={field.type}
+                      placeholder={field.label}
+                      className="border rounded-md px-3 py-2 text-sm"
+                      value={valor}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          especificacoes: { ...form.especificacoes, [field.name]: e.target.value },
+                        })
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="col-span-2 grid grid-cols-3 gap-4 border-t border-black/5 pt-4">
             <div>

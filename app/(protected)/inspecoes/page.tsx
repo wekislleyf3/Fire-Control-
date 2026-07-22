@@ -1,27 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-const supabase = createClient();
 import type { Cliente, Equipamento, Inspecao } from "@/lib/types";
+import {
+  CHECKLIST_PADRAO,
+  calcularResultado,
+  getChecklistParaTipo,
+  respostasPadrao,
+} from "@/lib/checklists";
+import { gerarInspecaoPdf } from "@/lib/pdf/inspecaoPdf";
 
-const CHECKLIST_ITEMS: { key: keyof typeof defaultChecklist; label: string }[] = [
-  { key: "funcionando", label: "Equipamento funcionando?" },
-  { key: "lacre_integro", label: "Lacre íntegro?" },
-  { key: "manometro_correto", label: "Manômetro na faixa correta?" },
-  { key: "acesso_livre", label: "Acesso livre e desobstruído?" },
-  { key: "sinalizacao_correta", label: "Sinalização correta?" },
-];
-
-const defaultChecklist = {
-  funcionando: true,
-  lacre_integro: true,
-  manometro_correto: true,
-  acesso_livre: true,
-  sinalizacao_correta: true,
-  corrosao: false,
-  necessita_manutencao: false,
-};
+const supabase = createClient();
 
 // intervalo padrão até a próxima inspeção, em dias (ajustável por tipo no futuro)
 const DIAS_PROXIMA_INSPECAO = 90;
@@ -32,12 +22,13 @@ export default function InspecoesPage() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [equipamentoId, setEquipamentoId] = useState("");
-  const [checklist, setChecklist] = useState({ ...defaultChecklist });
+  const [respostas, setRespostas] = useState<Record<string, boolean>>(respostasPadrao(CHECKLIST_PADRAO));
   const [observacoes, setObservacoes] = useState("");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gerandoPdfId, setGerandoPdfId] = useState<string | null>(null);
 
   async function loadBase() {
     const [cl, eq, insp] = await Promise.all([
@@ -59,23 +50,40 @@ export default function InspecoesPage() {
   }, []);
 
   const equipamentosDoCliente = equipamentos.filter((e) => e.cliente_id === clienteId);
+  const equipamentoSelecionado = equipamentos.find((e) => e.id === equipamentoId);
 
-  function toggle(key: keyof typeof defaultChecklist) {
-    setChecklist((c) => ({ ...c, [key]: !c[key] }));
+  // Checklist muda automaticamente de acordo com o tipo do equipamento selecionado
+  const checklistAtual = useMemo(
+    () => getChecklistParaTipo(equipamentoSelecionado?.tipo),
+    [equipamentoSelecionado?.tipo]
+  );
+
+  function selecionarEquipamento(id: string) {
+    setEquipamentoId(id);
+    const eq = equipamentos.find((e) => e.id === id);
+    setRespostas(respostasPadrao(getChecklistParaTipo(eq?.tipo)));
+  }
+
+  function toggle(key: string) {
+    setRespostas((r) => ({ ...r, [key]: !r[key] }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!clienteId || !equipamentoId) return;
+    if (!clienteId || !equipamentoId || !equipamentoSelecionado) return;
     setSaving(true);
     setFeedback(null);
+
+    const resultado = calcularResultado(checklistAtual, respostas);
 
     // 1. registra a inspeção
     await supabase.from("inspecoes").insert([
       {
         cliente_id: clienteId,
         equipamento_id: equipamentoId,
-        ...checklist,
+        tipo_equipamento_snapshot: equipamentoSelecionado.tipo,
+        itens_checklist: respostas,
+        resultado,
         observacoes: observacoes || null,
       },
     ]);
@@ -94,25 +102,20 @@ export default function InspecoesPage() {
     const proxima = new Date(hoje);
     proxima.setDate(proxima.getDate() + DIAS_PROXIMA_INSPECAO);
 
-    const novoStatus =
-      checklist.necessita_manutencao || checklist.corrosao || !checklist.funcionando
-        ? "atencao"
-        : "ok";
-
     await supabase
       .from("equipamentos")
       .update({
         ultima_inspecao: hoje.toISOString().slice(0, 10),
         proxima_inspecao: proxima.toISOString().slice(0, 10),
-        status: novoStatus,
+        status: resultado === "nao_conforme" ? "atencao" : "ok",
       })
       .eq("id", equipamentoId);
 
     setSaving(false);
     setFeedback("Inspeção registrada e status do equipamento atualizado.");
-    setChecklist({ ...defaultChecklist });
     setObservacoes("");
     setEquipamentoId("");
+    setRespostas(respostasPadrao(CHECKLIST_PADRAO));
     loadBase();
   }
 
@@ -127,6 +130,17 @@ export default function InspecoesPage() {
     loadBase();
   }
 
+  function handleGerarPdf(inspecao: Inspecao) {
+    setGerandoPdfId(inspecao.id);
+    try {
+      const cliente = clientes.find((c) => c.id === inspecao.cliente_id);
+      const equipamento = equipamentos.find((e) => e.id === inspecao.equipamento_id);
+      gerarInspecaoPdf(inspecao, cliente, equipamento);
+    } finally {
+      setGerandoPdfId(null);
+    }
+  }
+
   return (
     <div>
       <h1 className="font-display text-3xl mb-6">Inspeções</h1>
@@ -139,12 +153,13 @@ export default function InspecoesPage() {
             value={clienteId}
             onChange={(e) => {
               setClienteId(e.target.value);
-              setEquipamentoId("");
+              selecionarEquipamento("");
             }}
           >
             <option value="">Cliente *</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
+                {c.matricula ? `${c.matricula} — ` : ""}
                 {c.razao_social}
               </option>
             ))}
@@ -154,7 +169,7 @@ export default function InspecoesPage() {
             disabled={!clienteId}
             className="border rounded-md px-3 py-2 text-sm disabled:bg-brand-fog"
             value={equipamentoId}
-            onChange={(e) => setEquipamentoId(e.target.value)}
+            onChange={(e) => selecionarEquipamento(e.target.value)}
           >
             <option value="">Equipamento *</option>
             {equipamentosDoCliente.map((eq) => (
@@ -165,34 +180,33 @@ export default function InspecoesPage() {
           </select>
         </div>
 
+        {equipamentoSelecionado && (
+          <p className="text-xs text-brand-slate/60 mb-2">
+            Checklist de <span className="font-medium">{equipamentoSelecionado.tipo}</span> — os itens abaixo
+            mudam automaticamente conforme o tipo de equipamento selecionado.
+          </p>
+        )}
         <p className="text-sm font-medium text-brand-slate mb-2">Checklist</p>
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {CHECKLIST_ITEMS.map((item) => (
-            <label key={item.key} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={checklist[item.key]}
-                onChange={() => toggle(item.key)}
-              />
-              {item.label}
-            </label>
-          ))}
-          <label className="flex items-center gap-2 text-sm text-brand-red">
-            <input
-              type="checkbox"
-              checked={checklist.corrosao}
-              onChange={() => toggle("corrosao")}
-            />
-            Apresenta corrosão?
-          </label>
-          <label className="flex items-center gap-2 text-sm text-brand-red">
-            <input
-              type="checkbox"
-              checked={checklist.necessita_manutencao}
-              onChange={() => toggle("necessita_manutencao")}
-            />
-            Necessita manutenção?
-          </label>
+          {checklistAtual.map((item) => {
+            const alerta = item.key.startsWith("necessita_manutencao");
+            return (
+              <label
+                key={item.key}
+                className={`flex items-center gap-2 text-sm ${alerta ? "text-brand-red" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!respostas[item.key]}
+                  onChange={() => toggle(item.key)}
+                />
+                {item.label}
+                {item.critico && !alerta && (
+                  <span className="text-[10px] text-brand-slate/40">(crítico)</span>
+                )}
+              </label>
+            );
+          })}
         </div>
 
         <textarea
@@ -221,7 +235,7 @@ export default function InspecoesPage() {
       )}
 
       <div className="bg-white border border-black/5 rounded-lg overflow-x-auto">
-        <table className="w-full text-sm min-w-[700px]">
+        <table className="w-full text-sm min-w-[760px]">
           <thead className="bg-brand-fog text-left text-brand-slate">
             <tr>
               <th className="px-4 py-3">Data</th>
@@ -241,7 +255,7 @@ export default function InspecoesPage() {
             )}
             {inspecoes.map((i) => {
               const equip = equipamentos.find((e) => e.id === i.equipamento_id);
-              const ok = !i.necessita_manutencao && !i.corrosao && i.funcionando;
+              const ok = i.resultado ? i.resultado === "conforme" : true;
               return (
                 <tr key={i.id} className="border-t border-black/5">
                   <td className="px-4 py-3">{new Date(i.created_at).toLocaleDateString("pt-BR")}</td>
@@ -252,7 +266,7 @@ export default function InspecoesPage() {
                         ok ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                       }`}
                     >
-                      {ok ? "OK" : "Necessita atenção"}
+                      {ok ? "Conforme" : "Não conforme"}
                     </span>
                   </td>
                   <td className="px-4 py-3">{i.observacoes ?? "—"}</td>
@@ -273,12 +287,21 @@ export default function InspecoesPage() {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setDeletingId(i.id)}
-                        className="text-xs text-brand-red underline"
-                      >
-                        Excluir
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleGerarPdf(i)}
+                          disabled={gerandoPdfId === i.id}
+                          className="text-xs text-brand-ink underline disabled:opacity-50"
+                        >
+                          {gerandoPdfId === i.id ? "Gerando..." : "Emitir PDF"}
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(i.id)}
+                          className="text-xs text-brand-red underline"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

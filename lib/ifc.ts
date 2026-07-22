@@ -54,3 +54,22 @@ export function corDoIfc(score: number): { text: string; bg: string; border: str
   if (score >= 75) return { text: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" };
   return { text: "text-brand-red", bg: "bg-red-50", border: "border-red-200" };
 }
+
+export type FaixaIfc = {
+  label: "Excelente" | "Bom" | "Atenção" | "Crítico";
+  text: string;
+  bg: string;
+  border: string;
+};
+
+/**
+ * Classifica o IFC em faixas — a "nota" que a FireControl mostra ao
+ * cliente, igual a uma nota de segurança:
+ * 95–100 Excelente · 85–94 Bom · 70–84 Atenção · <70 Crítico
+ */
+export function faixaDoIfc(score: number): FaixaIfc {
+  if (score >= 95) return { label: "Excelente", text: "text-green-700", bg: "bg-green-50", border: "border-green-200" };
+  if (score >= 85) return { label: "Bom", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
+  if (score >= 70) return { label: "Atenção", text: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" };
+  return { label: "Crítico", text: "text-brand-red", bg: "bg-red-50", border: "border-red-200" };
+}
