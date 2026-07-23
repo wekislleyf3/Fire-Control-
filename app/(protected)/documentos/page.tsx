@@ -52,6 +52,9 @@ export default function DocumentosPage() {
 
   useEffect(() => {
     loadClientes();
+    const params = new URLSearchParams(window.location.search);
+    const clienteUrl = params.get("cliente");
+    if (clienteUrl) setClienteId(clienteUrl);
   }, []);
 
   useEffect(() => {

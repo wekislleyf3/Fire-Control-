@@ -1,16 +1,32 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import type { Cliente } from "@/types/cliente";
 import { enderecoCompleto } from "@/types/cliente";
 import type { Equipamento } from "@/types/equipamento";
 import type { Inspecao } from "@/types/inspecao";
 import { getChecklistParaTipo } from "@/lib/checklists";
 
-/** Gera e baixa (no navegador) o PDF de uma inspeção já registrada. */
-export function gerarInspecaoPdf(
+export type AutenticacaoLaudo = {
+  token: string;
+  hash: string;
+  dataEmissao: string;
+};
+
+/**
+ * Gera e baixa (no navegador) o PDF de uma inspeção já registrada.
+ *
+ * `autenticacao` deve vir do endpoint POST /api/laudos/emitir, chamado
+ * automaticamente ao salvar a inspeção (e de novo, de forma idempotente,
+ * antes de gerar o PDF) — então todo laudo novo já nasce com token/hash
+ * gravados no banco antes mesmo de o PDF ser desenhado. Só fica nulo em
+ * cenários de falha de rede pontual; ver aviso de "selo pendente" abaixo.
+ */
+export async function gerarInspecaoPdf(
   inspecao: Inspecao,
   cliente: Cliente | undefined,
-  equipamento: Equipamento | undefined
+  equipamento: Equipamento | undefined,
+  autenticacao: AutenticacaoLaudo | null
 ) {
   const doc = new jsPDF();
   const vermelho: [number, number, number] = [196, 30, 30];
@@ -89,6 +105,12 @@ export function gerarInspecaoPdf(
   doc.text("Data da inspeção", 14, y);
   doc.setFont("helvetica", "normal");
   doc.text(new Date(inspecao.created_at).toLocaleDateString("pt-BR"), 50, y);
+  y += 6;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Técnico responsável", 14, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(inspecao.responsavel_tecnico ?? "—", 50, y);
   y += 10;
 
   // Checklist
@@ -126,17 +148,18 @@ export function gerarInspecaoPdf(
   const verde: [number, number, number] = [22, 101, 52];
   const verdeClaro: [number, number, number] = [240, 253, 244];
   const vermelhoClaro: [number, number, number] = [254, 242, 242];
+  const alturaBoxes = 36;
 
   // Parecer técnico
   doc.setDrawColor(...(aprovado ? verde : vermelho));
   doc.setFillColor(...(aprovado ? verdeClaro : vermelhoClaro));
-  doc.roundedRect(14, finalY, 118, 26, 2, 2, "FD");
+  doc.roundedRect(14, finalY, 108, alturaBoxes, 2, 2, "FD");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...(aprovado ? verde : vermelho));
   doc.text(`PARECER: ${aprovado ? "EQUIPAMENTO CONFORME" : "NÃO CONFORMIDADE DETECTADA"}`, 18, finalY + 8, {
-    maxWidth: 110,
+    maxWidth: 100,
   });
 
   doc.setFont("helvetica", "normal");
@@ -148,29 +171,70 @@ export function gerarInspecaoPdf(
       : "Recomenda-se adequação/manutenção imediata conforme apontamentos acima.",
     18,
     finalY + 16,
-    { maxWidth: 108 }
+    { maxWidth: 98 }
   );
 
-  // Selo de vistoria virtual
+  // Selo de autenticidade — QR + token verificáveis em /verificar/[token].
+  // O token é um UUID salvo em `laudos_autenticacao` junto com um hash
+  // SHA-256 do conteúdo da inspeção (lib/documentoHash.ts): a página de
+  // verificação recalcula esse hash a partir dos dados atuais no banco e só
+  // confirma "autêntico" se ele bater com o que foi gravado na emissão —
+  // então ninguém consegue forjar um token válido nem adulterar os dados
+  // depois sem que a verificação denuncie.
   doc.setDrawColor(...vermelho);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(136, finalY, 60, 26, 2, 2, "FD");
+  doc.roundedRect(126, finalY, 70, alturaBoxes, 2, 2, "FD");
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...vermelho);
-  doc.text("SELO DE VISTORIA VIRTUAL", 166, finalY + 7, { align: "center" });
+  if (autenticacao) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...verde);
+    doc.text("✓ DOCUMENTO AUTENTICADO", 161, finalY + 6, { align: "center" });
 
-  doc.setFont("courier", "bold");
-  doc.setFontSize(7);
-  doc.setTextColor(60, 60, 60);
-  doc.text(inspecao.id.toUpperCase().slice(0, 16), 166, finalY + 14, { align: "center" });
+    const urlVerificacao = `${
+      typeof window !== "undefined" ? window.location.origin : ""
+    }/verificar/${encodeURIComponent(autenticacao.token)}`;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.text("FIRECONTROL OS VERIFIED", 166, finalY + 20, { align: "center" });
+    try {
+      const qrDataUrl = await QRCode.toDataURL(urlVerificacao, { margin: 0, width: 220 });
+      doc.addImage(qrDataUrl, "PNG", 129, finalY + 9, 20, 20);
+    } catch {
+      // se o QR falhar por qualquer motivo, o token abaixo ainda garante a verificação manual
+    }
 
-  let y2 = finalY + 34;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.8);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Código de autenticação:", 152, finalY + 11);
+    doc.setFont("courier", "bold");
+    doc.setFontSize(6.2);
+    doc.setTextColor(20, 20, 20);
+    const tokenLinhas = doc.splitTextToSize(autenticacao.token.toUpperCase(), 40);
+    doc.text(tokenLinhas, 152, finalY + 15);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.8);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Emitido: ${new Date(autenticacao.dataEmissao).toLocaleString("pt-BR")}`, 152, finalY + 24);
+
+    doc.setFontSize(5.3);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Hash: ${autenticacao.hash.slice(0, 16)}...`, 152, finalY + 28);
+    doc.text("Confira em /verificar", 152, finalY + 32);
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...vermelho);
+    doc.text("SELO PENDENTE", 161, finalY + 12, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(120, 120, 120);
+    doc.text("Não foi possível emitir a", 161, finalY + 19, { align: "center" });
+    doc.text("autenticação agora. Gere o", 161, finalY + 23, { align: "center" });
+    doc.text("PDF novamente para tentar de novo.", 161, finalY + 27, { align: "center", maxWidth: 62 });
+  }
+
+  let y2 = finalY + alturaBoxes + 8;
   if (inspecao.observacoes) {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");

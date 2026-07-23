@@ -46,6 +46,7 @@ const emptyForm = {
 
 export default function EquipamentosPage() {
   const router = useRouter();
+  const [busca, setBusca] = useState("");
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,9 @@ export default function EquipamentosPage() {
 
   useEffect(() => {
     loadData();
+    const params = new URLSearchParams(window.location.search);
+    const buscaUrl = params.get("busca");
+    if (buscaUrl) setBusca(buscaUrl);
   }, []);
 
   function startNew() {
@@ -176,6 +180,16 @@ export default function EquipamentosPage() {
     loadData();
   }
 
+  const equipamentosFiltrados = (() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return equipamentos;
+    return equipamentos.filter((eq) =>
+      [eq.codigo_interno, eq.tipo, eq.localizacao, eq.numero_serie, eq.fabricante]
+        .filter(Boolean)
+        .some((campo) => (campo as string).toLowerCase().includes(termo))
+    );
+  })();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -186,6 +200,16 @@ export default function EquipamentosPage() {
         >
           {showForm ? "Cancelar" : "+ Novo equipamento"}
         </button>
+      </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por código, tipo, localização ou nº de série..."
+          className="w-full md:w-96 border rounded-md px-3 py-2 text-sm"
+        />
       </div>
 
       {error && (
@@ -390,14 +414,14 @@ export default function EquipamentosPage() {
                 </td>
               </tr>
             )}
-            {!loading && equipamentos.length === 0 && (
+            {!loading && equipamentosFiltrados.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-brand-slate/60">
-                  Nenhum equipamento cadastrado ainda.
+                  {busca.trim() ? "Nenhum equipamento encontrado para essa busca." : "Nenhum equipamento cadastrado ainda."}
                 </td>
               </tr>
             )}
-            {equipamentos.map((eq) => (
+            {equipamentosFiltrados.map((eq) => (
               <tr key={eq.id} className="border-t border-black/5">
                 <td className="px-4 py-3 font-medium">{eq.codigo_interno}</td>
                 <td className="px-4 py-3">

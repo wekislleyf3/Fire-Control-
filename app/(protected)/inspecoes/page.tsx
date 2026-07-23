@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Cliente, Equipamento, Inspecao } from "@/lib/types";
 import {
   CHECKLIST_PADRAO,
@@ -10,7 +11,7 @@ import {
   getChecklistParaTipo,
   respostasPadrao,
 } from "@/lib/checklists";
-import { gerarInspecaoPdf } from "@/lib/pdf/inspecaoPdf";
+import { gerarInspecaoPdf, type AutenticacaoLaudo } from "@/lib/pdf/inspecaoPdf";
 
 const supabase = createClient();
 
@@ -19,6 +20,7 @@ const DIAS_PROXIMA_INSPECAO = 90;
 
 export default function InspecoesPage() {
   const router = useRouter();
+  const { user, profile } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([]);
@@ -77,18 +79,40 @@ export default function InspecoesPage() {
     setFeedback(null);
 
     const resultado = calcularResultado(checklistAtual, respostas);
+    const responsavelTecnico = profile?.nome || user?.email || null;
 
     // 1. registra a inspeção
-    await supabase.from("inspecoes").insert([
-      {
-        cliente_id: clienteId,
-        equipamento_id: equipamentoId,
-        tipo_equipamento_snapshot: equipamentoSelecionado.tipo,
-        itens_checklist: respostas,
-        resultado,
-        observacoes: observacoes || null,
-      },
-    ]);
+    const { data: inspecaoCriada, error: insertError } = await supabase
+      .from("inspecoes")
+      .insert([
+        {
+          cliente_id: clienteId,
+          equipamento_id: equipamentoId,
+          tipo_equipamento_snapshot: equipamentoSelecionado.tipo,
+          itens_checklist: respostas,
+          resultado,
+          observacoes: observacoes || null,
+          responsavel_tecnico: responsavelTecnico,
+        },
+      ])
+      .select("id")
+      .single();
+
+    // Emite o selo (token + hash) imediatamente ao finalizar a inspeção, como
+    // pedido: o laudo já nasce autenticável, sem depender do clique em
+    // "Emitir PDF" mais tarde. Se essa chamada falhar (ex: rede instável), o
+    // "Emitir PDF" tenta emitir de novo antes de desenhar o documento.
+    if (!insertError && inspecaoCriada) {
+      try {
+        await fetch("/api/laudos/emitir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inspecaoId: inspecaoCriada.id }),
+        });
+      } catch {
+        // sem problema — handleGerarPdf tenta emitir de novo quando o PDF for gerado
+      }
+    }
 
     // 2. registra no histórico permanente do equipamento
     await supabase.from("equipamento_historico").insert([
@@ -134,12 +158,28 @@ export default function InspecoesPage() {
     router.refresh();
   }
 
-  function handleGerarPdf(inspecao: Inspecao) {
+  async function handleGerarPdf(inspecao: Inspecao) {
     setGerandoPdfId(inspecao.id);
     try {
       const cliente = clientes.find((c) => c.id === inspecao.cliente_id);
       const equipamento = equipamentos.find((e) => e.id === inspecao.equipamento_id);
-      gerarInspecaoPdf(inspecao, cliente, equipamento);
+
+      let autenticacao: AutenticacaoLaudo | null = null;
+      try {
+        const resp = await fetch("/api/laudos/emitir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inspecaoId: inspecao.id }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          autenticacao = { token: data.token, hash: data.hash, dataEmissao: data.dataEmissao };
+        }
+      } catch {
+        // sem selo, o PDF ainda é gerado (ver aviso "SELO PENDENTE" dentro de gerarInspecaoPdf)
+      }
+
+      await gerarInspecaoPdf(inspecao, cliente, equipamento, autenticacao);
     } finally {
       setGerandoPdfId(null);
     }

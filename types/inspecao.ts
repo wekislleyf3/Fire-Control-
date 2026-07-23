@@ -13,6 +13,8 @@ export type Inspecao = {
   itens_checklist: ChecklistRespostas;
   resultado: ResultadoInspecao;
   observacoes: string | null;
+  /** Nome de quem realizou a inspeção. Aparece no PDF e na página de verificação. */
+  responsavel_tecnico: string | null;
   created_at: string;
 };
 
@@ -23,4 +25,5 @@ export type InspecaoInput = {
   itens_checklist: ChecklistRespostas;
   resultado: ResultadoInspecao;
   observacoes: string | null;
+  responsavel_tecnico: string | null;
 };
