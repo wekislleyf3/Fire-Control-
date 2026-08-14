@@ -37,36 +37,54 @@ export async function GET(req: NextRequest) {
 // ------------------------------------------------------------
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
+  console.log("📩 Webhook recebido, body bruto:", rawBody);
 
   // Validação de assinatura (recomendado pela Meta, evita chamadas falsas)
   const signature = req.headers.get("x-hub-signature-256");
-  if (!verifySignature(rawBody, signature)) {
+  const signatureOk = verifySignature(rawBody, signature);
+  console.log("🔐 Assinatura recebida:", signature, "| válida?", signatureOk);
+  if (!signatureOk) {
+    console.error("❌ Assinatura inválida — requisição rejeitada");
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
   const body = JSON.parse(rawBody);
+  console.log("📦 Body parseado, object:", body.object, "| entries:", body.entry?.length ?? 0);
 
   try {
     if (body.object === "instagram") {
       for (const entry of body.entry ?? []) {
+        console.log("➡️ Processando entry:", entry.id, "| messaging events:", entry.messaging?.length ?? 0);
         for (const event of entry.messaging ?? []) {
+          console.log("💬 Evento bruto:", JSON.stringify(event));
+
           // Ignora eco de mensagens enviadas pelo próprio bot
-          if (event.message?.is_echo) continue;
+          if (event.message?.is_echo) {
+            console.log("↩️ Ignorado: é eco de mensagem do próprio bot");
+            continue;
+          }
 
           const senderId = event.sender?.id;
           const text = event.message?.text?.trim();
+          console.log("🔎 senderId:", senderId, "| text:", text);
 
           if (senderId && text) {
+            console.log("✅ Chamando handleIncomingMessage...");
             await handleIncomingMessage(senderId, text);
           } else if (senderId && event.message && !text) {
+            console.log("🖼️ Mensagem sem texto (mídia) — respondendo fallback");
             // Lead mandou áudio, figurinha, imagem etc. — não deixa no vácuo
             await sendMessage(
               senderId,
               "Não consegui entender esse tipo de mensagem 🙏 pode responder em texto?"
             );
+          } else {
+            console.log("⚠️ Evento ignorado: sem senderId/text utilizável (pode ser 'read', 'delivery' etc.)");
           }
         }
       }
+    } else {
+      console.log("⚠️ body.object não é 'instagram':", body.object);
     }
     // Meta exige resposta 200 rápida, senão desativa o webhook
     return new NextResponse("EVENT_RECEIVED", { status: 200 });
@@ -179,6 +197,7 @@ async function handleIncomingMessage(senderId: string, text: string) {
 // ------------------------------------------------------------
 async function sendMessage(recipientId: string, text: string) {
   const url = `https://graph.instagram.com/${GRAPH_VERSION}/me/messages?access_token=${IG_ACCESS_TOKEN}`;
+  console.log("📤 Enviando mensagem para:", recipientId, "| texto:", text);
 
   const res = await fetch(url, {
     method: "POST",
@@ -191,7 +210,9 @@ async function sendMessage(recipientId: string, text: string) {
 
   if (!res.ok) {
     const errBody = await res.text();
-    console.error("Erro ao enviar mensagem Instagram:", res.status, errBody);
+    console.error("❌ Erro ao enviar mensagem Instagram:", res.status, errBody);
+  } else {
+    console.log("✅ Mensagem enviada com sucesso, status:", res.status);
   }
-}
+}	
 
